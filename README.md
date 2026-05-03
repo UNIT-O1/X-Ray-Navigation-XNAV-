@@ -1,5 +1,3 @@
-
-```
 # XNAV: Deep Space Autonomous Navigation
 
 > Sub-kilometer autonomous positioning beyond Earth orbit using millisecond pulsar timing and numerically stable state estimation.
@@ -111,19 +109,15 @@ This makes XNAV a high-fidelity conceptual prototype of real autonomous navigati
 ## 🛠️ Setup
 
 1. Create environment  
-```
 
 python -m venv xnav_env
-source xnav_env/bin/activate  # Windows: xnav_env\Scripts\activate
+source xnav_env/bin/activate # Windows: xnav_env\Scripts\activate
 
-```
 
 2. Install dependencies  
-```
 
 pip install numpy astropy jplephem matplotlib scipy tqdm
 
-```
 
 3. Data setup  
 - Download JPL DE440 ephemeris file (de440.bsp)  
@@ -134,25 +128,19 @@ pip install numpy astropy jplephem matplotlib scipy tqdm
 ## ▶️ Usage
 
 Scientific 3D Simulation  
-```
 
 python 3d_advanced_animation.py
 
-```
 
 Mission Control Dashboard  
-```
 
 python advanced_animation.py
 
-```
 
 Basic Trajectory Simulation  
-```
 
 python animate_trajectory.py
 
-```
 
 Interactive Web Interface  
 Open `XNAV.html` in a browser  
@@ -184,5 +172,4 @@ B.Tech Mathematics & Computing, NIT Warangal
 
 ---
 
-XNAV represents a step toward fully autonomous deep-space systems—where spacecraft navigate using the universe itself rather than relying on Earth.
-```
+XNAV represents a step toward fully autonomous deep-space systems—where spacecraft navigate u
