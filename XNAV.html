@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project XNAV - Pulsar Navigation Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000000; color: #E5E7EB; font-family: 'Inter', sans-serif; }
+        canvas { display: block; }
+        #ui-container {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            border-radius: 8px;
+            padding: 24px;
+            width: 340px;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            box-shadow: 0 0 25px rgba(56, 189, 248, 0.1);
+        }
+        .ui-section {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 16px;
+            margin-bottom: 16px;
+        }
+        .ui-section:last-child { border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
+        .pulsar-info { font-size: 0.8rem; color: #9CA3AF; }
+        .coord-box {
+            background-color: rgba(0, 0, 0, 0.5);
+            border-radius: 4px;
+            padding: 10px;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 0.8rem;
+            line-height: 1.5;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .ui-button {
+            background-color: rgba(30, 30, 30, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.2s ease;
+            font-weight: 600;
+        }
+        .ui-button:hover {
+            background-color: rgba(56, 189, 248, 1);
+            border-color: rgba(56, 189, 248, 1);
+            color: #000;
+        }
+        .label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #9CA3AF;
+            margin-bottom: 4px;
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="ui-container">
+        <div class="ui-section">
+            <h1 class="text-2xl font-bold text-white tracking-wider">PROJECT XNAV</h1>
+            <p class="text-sm text-sky-400">Deep Space Autonomous Navigation Simulator</p>
+        </div>
+
+        <div class="ui-section grid grid-cols-2 gap-4">
+            <div>
+                <h2 class="label">Simulated Position</h2>
+                <pre id="actual-position" class="text-green-400 coord-box">--</pre>
+            </div>
+            <div>
+                <h2 class="label">Calculated Position</h2>
+                <pre id="pulsar-position" class="text-sky-400 coord-box">--</pre>
+            </div>
+        </div>
+        
+        <div class="ui-section">
+             <h2 class="label">Navigation Error</h2>
+             <div id="nav-error" class="text-yellow-400 text-3xl font-bold font-mono">--</div>
+        </div>
+
+        <div class="ui-section">
+             <h2 class="label">Reference Pulsars</h2>
+             <div id="pulsar-list" class="space-y-2 text-sm"></div>
+        </div>
+
+        <div class="ui-section">
+            <h2 class="label">System Control</h2>
+            <div class="flex space-x-2">
+                <button id="start-sim" class="ui-button flex-1 text-white py-2 px-4 rounded-md">INITIALIZE</button>
+                <button id="pause-sim" class="ui-button flex-1 text-white py-2 px-4 rounded-md">PAUSE</button>
+                <button id="reset-sim" class="ui-button flex-1 text-white py-2 px-4 rounded-md">RESET</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.163.0/examples/jsm/" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        // --- Basic Setup ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        camera.position.set(0, 80, 200);
+        
+        const textureLoader = new THREE.TextureLoader();
+        
+        // --- Post-processing ---
+        const composer = new EffectComposer(renderer);
+        composer.addPass(new RenderPass(scene, camera));
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.5, 0);
+        composer.addPass(bloomPass);
+
+        // --- Environment ---
+        scene.background = textureLoader.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/space/starmap_g4k.jpg');
+        scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+        const sunLight = new THREE.PointLight(0xffffff, 3, 3000);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        scene.add(sunLight);
+
+        // --- Celestial Bodies ---
+        const sunMaterial = new THREE.MeshBasicMaterial({ map: textureLoader.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/sun.jpg') });
+        const sun = new THREE.Mesh(new THREE.SphereGeometry(10, 64, 64), sunMaterial);
+        scene.add(sun);
+        
+        const earth = new THREE.Mesh(new THREE.SphereGeometry(3, 64, 64), new THREE.MeshStandardMaterial({ map: textureLoader.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/earth_atmos_2048.jpg'), normalMap: textureLoader.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/earth_normal_2048.jpg'), specularMap: textureLoader.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/earth_specular_2048.jpg'), metalness: 0.1, roughness: 0.7 }));
+        earth.position.x = 100; earth.castShadow = true; earth.receiveShadow = true;
+        scene.add(earth);
+        const clouds = new THREE.Mesh(new THREE.SphereGeometry(3.05, 64, 64), new THREE.MeshStandardMaterial({ map: textureLoader.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/earth_clouds_2048.png'), transparent: true, opacity: 0.8 }));
+        earth.add(clouds);
+        const mars = new THREE.Mesh(new THREE.SphereGeometry(2, 64, 64), new THREE.MeshStandardMaterial({ map: textureLoader.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/mars_1k_color.jpg'), normalMap: textureLoader.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/mars_1k_normal.jpg') }));
+        mars.position.x = 180; mars.castShadow = true; mars.receiveShadow = true;
+        scene.add(mars);
+
+        // --- Spacecraft Model ---
+        const spacecraft = new THREE.Mesh(
+            new THREE.SphereGeometry(0.5, 16, 16),
+            new THREE.MeshBasicMaterial({ color: 0xffffff })
+        );
+        spacecraft.castShadow = true;
+        spacecraft.receiveShadow = true;
+        scene.add(spacecraft);
+
+        // --- Path Tracing Lines ---
+        const MAX_POINTS = 5000;
+        let actualPathPositions = new Float32Array(MAX_POINTS * 3);
+        let calculatedPathPositions = new Float32Array(MAX_POINTS * 3);
+        let pathPointCount = 0;
+        const actualPathGeom = new THREE.BufferGeometry();
+        actualPathGeom.setAttribute('position', new THREE.BufferAttribute(actualPathPositions, 3));
+        const actualPathLine = new THREE.Line(actualPathGeom, new THREE.LineBasicMaterial({ color: 0x00ff00 })); // Green
+        scene.add(actualPathLine);
+        const calculatedPathGeom = new THREE.BufferGeometry();
+        calculatedPathGeom.setAttribute('position', new THREE.BufferAttribute(calculatedPathPositions, 3));
+        const calculatedPathLine = new THREE.Line(calculatedPathGeom, new THREE.LineDashedMaterial({ color: 0xff0000, dashSize: 3, gapSize: 2 })); // Red Dashed
+        scene.add(calculatedPathLine);
+
+        // --- Pulsar Data & Objects ---
+        const SCENE_SCALE = 1 / 5;
+        function astronomicalToCartesian(ra_hr, ra_min, ra_sec, dec_deg, dec_min, dec_sec, distance_ly) { const ra_rad = (ra_hr + ra_min/60 + ra_sec/3600) * (15 * Math.PI / 180); const dec_rad = (Math.abs(dec_deg) + dec_min/60 + dec_sec/3600) * (Math.PI / 180) * (dec_deg > 0 ? 1 : -1); return new THREE.Vector3(distance_ly * Math.cos(dec_rad) * Math.cos(ra_rad), distance_ly * Math.cos(dec_rad) * Math.sin(ra_rad), distance_ly * Math.sin(dec_rad)); }
+        const pulsarData = [ { name: 'J0437-4715', pos: astronomicalToCartesian(4, 37, 15.8, -47, 15, 8.6, 510) }, { name: 'B0531+21 (Crab)', pos: astronomicalToCartesian(5, 34, 31.9, 22, 0, 52, 6500) }, { name: 'J1939+2134 (B1937+21)', pos: astronomicalToCartesian(19, 39, 38.5, 21, 34, 59, 12000) }, { name: 'J1012+5307', pos: astronomicalToCartesian(10, 12, 33.4, 53, 7, 2.4, 2600) }, ];
+        const pulsarObjects = []; const pulsarLines = []; const pulsarListUI = document.getElementById('pulsar-list');
+        pulsarData.forEach(p => {
+            const scaledPos = p.pos.clone().multiplyScalar(SCENE_SCALE);
+            const pulsarObj = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 16), new THREE.MeshBasicMaterial({ color: 0xffff00 })); // Yellow
+            pulsarObj.position.copy(scaledPos); scene.add(pulsarObj); pulsarObjects.push(pulsarObj);
+            const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.3 })); // Yellow
+            scene.add(line); pulsarLines.push(line);
+            const pInfo = document.createElement('div'); pInfo.innerHTML = `<strong>${p.name}</strong> <span class="pulsar-info">(${p.pos.length().toFixed(0)} ly)</span>`;
+            pulsarListUI.appendChild(pInfo);
+        });
+
+        // --- Gauss-Newton Solver ---
+        function invert3x3(m) { const [m0, m1, m2, m3, m4, m5, m6, m7, m8] = m; const det = m0 * (m4 * m8 - m5 * m7) - m1 * (m3 * m8 - m5 * m6) + m2 * (m3 * m7 - m4 * m6); if (det === 0) return null; const invDet = 1.0 / det; return [ (m4 * m8 - m5 * m7) * invDet, (m2 * m7 - m1 * m8) * invDet, (m1 * m5 - m2 * m4) * invDet, (m5 * m6 - m3 * m8) * invDet, (m0 * m8 - m2 * m6) * invDet, (m2 * m3 - m0 * m5) * invDet, (m3 * m7 - m4 * m6) * invDet, (m1 * m6 - m0 * m7) * invDet, (m0 * m4 - m1 * m3) * invDet ]; }
+        function gaussNewtonSolver(pulsars, observedTDOAs, initialGuess) {
+            const MAX_ITERATIONS = 10; const CONVERGENCE_THRESHOLD = 0.01; let currentGuess = initialGuess.clone(); const c = 1.0;
+            for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
+                const p0 = pulsars[0].pos; let J_T_J = [0, 0, 0, 0, 0, 0, 0, 0, 0]; let J_T_r = [0, 0, 0];
+                for (let i = 1; i < pulsars.length; i++) {
+                    const pi = pulsars[i].pos; const d0 = currentGuess.distanceTo(p0); const di = currentGuess.distanceTo(pi);
+                    const residual = observedTDOAs[i-1] - ((di - d0) / c);
+                    const jacobianRow = [ ((currentGuess.x - pi.x)/di - (currentGuess.x - p0.x)/d0) / c, ((currentGuess.y - pi.y)/di - (currentGuess.y - p0.y)/d0) / c, ((currentGuess.z - pi.z)/di - (currentGuess.z - p0.z)/d0) / c ];
+                    for (let j = 0; j < 3; j++) { J_T_r[j] += jacobianRow[j] * residual; for (let k = 0; k < 3; k++) { J_T_J[j*3+k] += jacobianRow[j] * jacobianRow[k]; } }
+                }
+                const J_T_J_inv = invert3x3(J_T_J); if (!J_T_J_inv) return currentGuess;
+                const delta = [ J_T_J_inv[0]*J_T_r[0] + J_T_J_inv[1]*J_T_r[1] + J_T_J_inv[2]*J_T_r[2], J_T_J_inv[3]*J_T_r[0] + J_T_J_inv[4]*J_T_r[1] + J_T_J_inv[5]*J_T_r[2], J_T_J_inv[6]*J_T_r[0] + J_T_J_inv[7]*J_T_r[1] + J_T_J_inv[8]*J_T_r[2] ];
+                currentGuess.x += delta[0]; currentGuess.y += delta[1]; currentGuess.z += delta[2];
+                if (new THREE.Vector3(...delta).length() < CONVERGENCE_THRESHOLD) break;
+            }
+            return currentGuess;
+        }
+
+        // --- Core Navigation Logic ---
+        let lastCalculatedPosition = null;
+        function calculatePulsarPosition(truePosition) {
+            const c = 1.0; const observedTDOAs = []; const p0_pos = pulsarData[0].pos;
+            const noiseMagnitude = 0.001; // Small noise value
+            for (let i = 1; i < pulsarData.length; i++) {
+                let tdoa = (truePosition.distanceTo(pulsarData[i].pos) - truePosition.distanceTo(p0_pos)) / c;
+                tdoa += (Math.random() - 0.5) * noiseMagnitude; // Add noise
+                observedTDOAs.push(tdoa);
+            }
+            const initialGuess = lastCalculatedPosition ? lastCalculatedPosition.clone() : truePosition.clone();
+            const newPosition = gaussNewtonSolver(pulsarData, observedTDOAs, initialGuess);
+            lastCalculatedPosition = newPosition.clone();
+            return newPosition;
+        }
+
+        // --- Simulation State & Loop ---
+        let isSimulating = false; let simulationTime = 0; const simulationSpeed = 0.05;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (isSimulating) {
+                simulationTime += simulationSpeed;
+                earth.position.set(Math.cos(simulationTime * 0.1) * 100, 0, Math.sin(simulationTime * 0.1) * 100);
+                mars.position.set(Math.cos(simulationTime * 0.08) * 180, 0, Math.sin(simulationTime * 0.08) * 180);
+                earth.rotation.y += 0.005; clouds.rotation.y += 0.006; mars.rotation.y += 0.003; sun.rotation.y += 0.001;
+
+                const pathProgress = Math.min(simulationTime / 50, 1);
+                
+                if (spacecraft) {
+                    spacecraft.position.lerpVectors(earth.position, mars.position, pathProgress);
+                    
+                    const calculatedPos = calculatePulsarPosition(spacecraft.position);
+                    const error = spacecraft.position.distanceTo(calculatedPos);
+                    
+                    document.getElementById('actual-position').textContent = `X:${spacecraft.position.x.toFixed(1)}\nY:${spacecraft.position.y.toFixed(1)}\nZ:${spacecraft.position.z.toFixed(1)}`;
+                    document.getElementById('pulsar-position').textContent = `X:${calculatedPos.x.toFixed(1)}\nY:${calculatedPos.y.toFixed(1)}\nZ:${calculatedPos.z.toFixed(1)}`;
+                    document.getElementById('nav-error').textContent = `${error.toFixed(2)} km`;
+                    
+                    if(pathPointCount < MAX_POINTS) {
+                        actualPathPositions.set([spacecraft.position.x, spacecraft.position.y, spacecraft.position.z], pathPointCount * 3);
+                        calculatedPathPositions.set([calculatedPos.x, calculatedPos.y, calculatedPos.z], pathPointCount * 3);
+                        pathPointCount++;
+                        actualPathGeom.setDrawRange(0, pathPointCount);
+                        calculatedPathGeom.setDrawRange(0, pathPointCount);
+                        actualPathGeom.attributes.position.needsUpdate = true;
+                        calculatedPathGeom.attributes.position.needsUpdate = true;
+                        calculatedPathLine.computeLineDistances();
+                    }
+
+                    pulsarLines.forEach((line, i) => { const positions = line.geometry.attributes.position.array; spacecraft.position.toArray(positions, 0); pulsarObjects[i].position.toArray(positions, 3); line.geometry.attributes.position.needsUpdate = true; });
+                }
+            }
+            controls.update(); composer.render();
+        }
+
+        // --- Event Listeners ---
+        document.getElementById('start-sim').addEventListener('click', () => { isSimulating = true; if (!lastCalculatedPosition && spacecraft) { lastCalculatedPosition = earth.position.clone(); }});
+        document.getElementById('pause-sim').addEventListener('click', () => { isSimulating = false; });
+        document.getElementById('reset-sim').addEventListener('click', () => {
+            isSimulating = false; simulationTime = 0; lastCalculatedPosition = null; pathPointCount = 0;
+            if(spacecraft) spacecraft.position.copy(earth.position);
+            document.getElementById('actual-position').textContent = '--'; document.getElementById('pulsar-position').textContent = '--';
+            document.getElementById('nav-error').textContent = '--';
+            actualPathGeom.setDrawRange(0, 0); calculatedPathGeom.setDrawRange(0, 0);
+        });
+        window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); composer.setSize(window.innerWidth, window.innerHeight); });
+        
+        animate();
+    </script>
+</body>
+</html>
+
