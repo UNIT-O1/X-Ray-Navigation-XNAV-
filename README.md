@@ -116,8 +116,8 @@ source xnav_env/bin/activate # Windows: xnav_env\Scripts\activate
 
 2. Install dependencies  
 
-pip install numpy astropy jplephem matplotlib scipy tqdm
-JPL Dataset link:- ssd.jpl.nasa.gov/ftp/eph/planets/bsp/de440.bsp
+- pip install numpy astropy jplephem matplotlib scipy tqdm
+- JPL Dataset link:- ssd.jpl.nasa.gov/ftp/eph/planets/bsp/de440.bsp
 
 
 3. Data setup  
